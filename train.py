@@ -1,25 +1,34 @@
-from transformers import  Trainer, TrainingArguments
+from transformers import  Trainer, TrainingArguments, set_seed
 from model import *
 from dataset import *
 from tokenizer import *
+import wandb
+import sklearn
+import numpy as np
+import pandas as pd
+import torch
 
-
+wandb.init(project="news_classification", entity="blendlee")
 
 def train():
     set_seed(42)
 
     datadir='/opt/ml/Daycon/dataset/train.csv'
 
-    tokenizer = NewsTokenizer()
+    tokenizer =BertTokenizer('/opt/ml/Daycon/vocab.txt')
     model = BertClassifier()
 
 
     dataset = load_data(datadir)
 
     train_data,val_data = split_data(dataset)
-
-    train_dataset = News_Dataset()
-    val_dataset = News_Dataset()
+    
+    tokenized_train = tokenized_dataset(train_data,tokenizer)
+    tokenized_val = tokenized_dataset(val_data,tokenizer)
+    
+    
+    train_dataset = News_Dataset(tokenized_train,train_label)
+    val_dataset = News_Dataset(tokenized_val,val_label)
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)

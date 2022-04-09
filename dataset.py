@@ -1,5 +1,9 @@
+
+
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from sklearn.model_selection import StratifiedShuffleSplit,StratifiedKFold
+
 from tokenizer import *
 import pandas as pd
 import torch
@@ -46,11 +50,24 @@ def load_data(datadir):
     dataset = preprocess(dataset)
     return dataset
 
-def tokenize_dataset(dataset):
-    pass
+def tokenize_dataset(dataset,tokenizer):
+
+    tokenized_text = tokenizer(list(dataset['text']),
+        return_tensors="pt",
+        padding=True,
+        truncation=True,
+        max_length=256,
+        add_special_tokens=True,
+        )
+
+    return tokenized_text
 
 def split_data(dataset):
-    pass
+    split = StratifiedShuffleSplit(test_size=0.2, random_state=42, shuffle=True)
+    for train_index, dev_index in split.split(dataset, dataset["label"]):
+        train_dataset = dataset.loc[train_index]
+        dev_dataset = dataset.loc[dev_index]
+        return train_dataset, dev_dataset
 
 
 
