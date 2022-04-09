@@ -1,4 +1,5 @@
 from transformers import  Trainer, TrainingArguments, set_seed
+from transformers import BertTokenizer
 from model import *
 from dataset import *
 from tokenizer import *
@@ -10,19 +11,44 @@ import torch
 
 wandb.init(project="news_classification", entity="blendlee")
 
+def klue_re_micro_f1(preds, labels):
+   
+    label_indices = list(range(20))
+    return sklearn.metrics.f1_score(labels, preds, average="micro", labels=label_indices) * 100.0
+
+
+def compute_metrics(pred):
+    """ validation을 위한 metrics function """
+    labels = pred.label_ids
+    preds = pred.predictions.argmax(-1)
+
+
+    # calculate accuracy using sklearn's function
+    f1 = klue_re_micro_f1(preds, labels)
+    acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
+
+    return {
+        'micro f1 score': f1,
+        'accuracy': acc,
+    }
+
+
+
+
 def train():
     set_seed(42)
 
     datadir='/opt/ml/Daycon/dataset/train.csv'
 
-    tokenizer =BertTokenizer('/opt/ml/Daycon/vocab.txt')
-    model = BertClassifier()
-
+    tokenizer =BertTokenizer('/opt/ml/Daycon/vocabs.txt')
+    model = LSTMClassifier(700,768)
 
     dataset = load_data(datadir)
-
     train_data,val_data = split_data(dataset)
     
+    train_label = train_data['target']
+    val_label = val_data['target']
+ 
     tokenized_train = tokenized_dataset(train_data,tokenizer)
     tokenized_val = tokenized_dataset(val_data,tokenizer)
     
@@ -39,7 +65,7 @@ def train():
         output_dir='./results',          # output directory
         save_total_limit=5,              # number of total save model.
         save_steps=500,                 # model saving step.
-        num_train_epochs=4,              # total number of training epochs
+        num_train_epochs=10,              # total number of training epochs
         learning_rate=5e-5,               # learning_rate
         per_device_train_batch_size=32,  # batch size per device during training
         per_device_eval_batch_size=32,   # batch size for evaluation
@@ -59,19 +85,16 @@ def train():
     trainer = Trainer(
         model=model,                         # the instantiated 🤗 Transformers model to be trained
         args=training_args,                  # training arguments, defined above
-        train_dataset=RE_train_dataset,         # training dataset
-        eval_dataset=RE_dev_dataset,             # evaluation dataset
+        train_dataset=train_dataset,         # training dataset
+        eval_dataset=val_dataset,             # evaluation dataset
         compute_metrics=compute_metrics         # define metrics function
         )
 
         # train model
     trainer.train()
-        if num_splits == 1:
-            best_dir = f'./best_model'
-        else: best_dir = f'./best_model/{fold}_best_model'
 
-    os.makedirs(best_dir, exist_ok=True)
-    torch.save(model.state_dict(), PATH)
+
+    torch.save(model.state_dict(), '/opt/ml/Daycon/best_model')
 
 
 

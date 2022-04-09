@@ -7,23 +7,27 @@ from sklearn.model_selection import StratifiedShuffleSplit,StratifiedKFold
 from tokenizer import *
 import pandas as pd
 import torch
-
+import re
 
 
 
 class News_Dataset(Dataset):
-    def __init__(self,tokenized_dataset,label):
-        self.dataset = dataset
+    def __init__(self,tokenized_dataset,label,train=True):
         self.text= tokenized_dataset
-        
+        self.labels = label.reset_index()
+        self.train = train
 
     def __getitem__(self,idx):
-        sentence = self.tokenized_dataset[i]
-        label = self.label[i]
-        return sentence,label
+        item={}
+        item['input_ids']=self.text['input_ids'][idx]
+        if self.train:
+            item['label'] = torch.tensor(self.labels['target'][idx], dtype=torch.long)
+        else:
+            item['label'] = torch.tensor(0, dtype=torch.long)
+        return item
 
     def __len__(self):
-        return len(tokenized_dataset)
+        return len(self.labels)
 
 
 
@@ -31,9 +35,9 @@ class News_Dataset(Dataset):
 def preprocess(dataset):
     for i in range(len(dataset)):
         text = dataset['text'][i]
-        review = re.sub(r'[@%\\*=()/~#&\+á?\xc3\xa1\-\|\.\:\;\!\-\,\_\~\$\'\"\n\]\[\>]', '',text) #@%*=()/+ 와 같은 문장부호 제거
-        review = re.sub(r'\d+','', review)#숫자 제거
-        review = review.lower() #소문자 변환
+        #review = re.sub(r'[@%\\*=()/~#&\+á?\xc3\xa1\-\|\.\:\;\!\-\,\_\~\$\'\"\n\]\[\>]', '',text) #@%*=()/+ 와 같은 문장부호 제거
+        #review = re.sub(r'\d+','', review)#숫자 제거
+        review = text.lower() #소문자 변환
         review = re.sub(r'\s+', ' ', review) #extra space 제거
         review = re.sub(r'<[^>]+>','',review) #Html tags 제거
         review = re.sub(r'\s+', ' ', review) #spaces 제거
@@ -50,21 +54,21 @@ def load_data(datadir):
     dataset = preprocess(dataset)
     return dataset
 
-def tokenize_dataset(dataset,tokenizer):
+def tokenized_dataset(dataset,tokenizer):
 
     tokenized_text = tokenizer(list(dataset['text']),
         return_tensors="pt",
         padding=True,
         truncation=True,
-        max_length=256,
+        max_length=700,
         add_special_tokens=True,
         )
 
     return tokenized_text
 
 def split_data(dataset):
-    split = StratifiedShuffleSplit(test_size=0.2, random_state=42, shuffle=True)
-    for train_index, dev_index in split.split(dataset, dataset["label"]):
+    split = StratifiedShuffleSplit(test_size=0.2, random_state=42)
+    for train_index, dev_index in split.split(dataset,dataset['target']):
         train_dataset = dataset.loc[train_index]
         dev_dataset = dataset.loc[dev_index]
         return train_dataset, dev_dataset
