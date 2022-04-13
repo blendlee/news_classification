@@ -1,6 +1,0 @@
-
-
-class NewsTokenizer():
-    #test
-    pass
-    

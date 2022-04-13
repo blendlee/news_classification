@@ -3,41 +3,39 @@
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from sklearn.model_selection import StratifiedShuffleSplit,StratifiedKFold
-
-from tokenizer import *
+from tokenizers import BertWordPieceTokenizer
 import pandas as pd
 import torch
 import re
-
-
+import json
 
 class News_Dataset(Dataset):
     def __init__(self,tokenized_dataset,label,train=True):
         self.text= tokenized_dataset
-        self.labels = label.reset_index()
         self.train = train
+        self.labels=label
 
     def __getitem__(self,idx):
-        item={}
-        item['input_ids']=self.text['input_ids'][idx]
+        item = {key: torch.tensor(val[idx]) for key, val in self.text.items()}
         if self.train:
-            item['label'] = torch.tensor(self.labels['target'][idx], dtype=torch.long)
+            item['labels'] = torch.tensor([self.labels[idx]])
+
         else:
-            item['label'] = torch.tensor(0, dtype=torch.long)
+            item['labels'] = torch.tensor(0)
+
         return item
 
     def __len__(self):
         return len(self.labels)
 
 
-
-
 def preprocess(dataset):
+    #f=open('/opt/ml/news_classification/corpus.txt','w')
     for i in range(len(dataset)):
         text = dataset['text'][i]
-        #review = re.sub(r'[@%\\*=()/~#&\+á?\xc3\xa1\-\|\.\:\;\!\-\,\_\~\$\'\"\n\]\[\>]', '',text) #@%*=()/+ 와 같은 문장부호 제거
-        #review = re.sub(r'\d+','', review)#숫자 제거
-        review = text.lower() #소문자 변환
+        review = re.sub(r'[@%\\*=()/~#&\+á?\xc3\xa1\-\|\.\:\;\!\-\,\_\~\$\'\"\n\]\[\>]', '',text) #@%*=()/+ 와 같은 문장부호 제거
+        review = re.sub(r'\d+','', review)#숫자 제거
+        review = review.lower() #소문자 변환
         review = re.sub(r'\s+', ' ', review) #extra space 제거
         review = re.sub(r'<[^>]+>','',review) #Html tags 제거
         review = re.sub(r'\s+', ' ', review) #spaces 제거
@@ -45,8 +43,32 @@ def preprocess(dataset):
         review = re.sub(r'\s+$', '', review) #space from the end 제거
         review = re.sub(r'_', ' ', review) #space from the end 제거
         dataset['text'][i]=review
+        #f.write(review)
+    #f.close()
+        
     return dataset
 
+def tokenizing(corpus_dir,tokenizer):
+    
+    tokenizer.train(
+        files = [corpus_dir],
+        vocab_size = 35000,
+        min_frequency = 1,
+        limit_alphabet = 1000,
+        special_tokens = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"],
+        show_progress = True,
+        wordpieces_prefix = "##",
+    )
+    
+    tokenizer.save('/opt/ml/news_classification/vocab')
+    vocab_file = '/opt/ml/news_classification/vocabs.txt'
+    vocab_path = '/opt/ml/news_classification/vocab'
+    f = open(vocab_file,'w',encoding='utf-8')
+    with open(vocab_path) as json_file:
+        json_data = json.load(json_file)
+        for item in json_data["model"]["vocab"].keys():
+            f.write(item+'\n')
+        f.close()
 
 
 def load_data(datadir):
@@ -54,17 +76,28 @@ def load_data(datadir):
     dataset = preprocess(dataset)
     return dataset
 
-def tokenized_dataset(dataset,tokenizer):
-
-    tokenized_text = tokenizer(list(dataset['text']),
-        return_tensors="pt",
-        padding=True,
-        truncation=True,
-        max_length=700,
-        add_special_tokens=True,
-        )
-
-    return tokenized_text
+def tokenized_dataset(dataset,tokenizer,max_len):
+    tokens=[]
+    token_type_ids=[]
+    attention_masks=[]
+    for i in range(len(dataset)):
+        encodings=tokenizer.encode('[CLS]',dataset['text'][i])
+        length=len(encodings.ids)
+        if length > max_len:
+            token = encodings.ids[:max_len]
+            token_type_id=encodings.type_ids[:max_len]
+            attention_mask=encodings.attention_mask[:max_len]
+        else:
+            token = encodings.ids + [0]*(max_len-length)
+            token_type_id=encodings.type_ids+ [0]*(max_len-length)
+            attention_mask=encodings.attention_mask+ [0]*(max_len-length)
+        tokens.append(token)
+        token_type_ids.append(token_type_id)
+        attention_masks.append(attention_mask)
+    
+    return {'input_ids':torch.tensor(tokens),
+            'token_type_ids':torch.tensor(token_type_ids),
+            'attention_mask':torch.tensor(attention_masks)}
 
 def split_data(dataset):
     split = StratifiedShuffleSplit(test_size=0.2, random_state=42)
