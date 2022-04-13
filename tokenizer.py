@@ -1,6 +1,6 @@
 
 
 class NewsTokenizer():
-    print('test')
+    #test
     pass
     
