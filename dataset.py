@@ -9,6 +9,7 @@ import torch
 import re
 import json
 
+
 class News_Dataset(Dataset):
     def __init__(self,tokenized_dataset,label,train=True):
         self.text= tokenized_dataset
@@ -16,13 +17,11 @@ class News_Dataset(Dataset):
         self.labels=label
 
     def __getitem__(self,idx):
-        item = {key: torch.tensor(val[idx]) for key, val in self.text.items()}
+        item = {key: torch.LongTensor(val[idx]) for key, val in self.text.items()}
         if self.train:
-            item['labels'] = torch.tensor([self.labels[idx]])
-
+            item['labels'] = torch.LongTensor([self.labels[idx]])
         else:
-            item['labels'] = torch.tensor(0)
-
+            item['labels'] = torch.LongTensor(0)
         return item
 
     def __len__(self):
@@ -48,12 +47,12 @@ def preprocess(dataset):
         
     return dataset
 
-def tokenizing(corpus_dir,tokenizer):
+def tokenizing(corpus_dir,tokenizer,vocab_size):
     
     tokenizer.train(
         files = [corpus_dir],
-        vocab_size = 35000,
-        min_frequency = 1,
+        vocab_size = vocab_size,
+        min_frequency = 10,
         limit_alphabet = 1000,
         special_tokens = ["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"],
         show_progress = True,
@@ -82,22 +81,20 @@ def tokenized_dataset(dataset,tokenizer,max_len):
     attention_masks=[]
     for i in range(len(dataset)):
         encodings=tokenizer.encode('[CLS]',dataset['text'][i])
-        length=len(encodings.ids)
-        if length > max_len:
-            token = encodings.ids[:max_len]
+        token=encodings.ids
+        if len(token) > max_len:
+            token = token[:max_len]
             token_type_id=encodings.type_ids[:max_len]
             attention_mask=encodings.attention_mask[:max_len]
         else:
-            token = encodings.ids + [0]*(max_len-length)
-            token_type_id=encodings.type_ids+ [0]*(max_len-length)
-            attention_mask=encodings.attention_mask+ [0]*(max_len-length)
+            token = token + [0]*(max_len-len(token))
+            token_type_id=encodings.type_ids+ [0]*(max_len-len(token))
+            attention_mask=encodings.attention_mask+ [0]*(max_len-len(token))
         tokens.append(token)
         token_type_ids.append(token_type_id)
         attention_masks.append(attention_mask)
     
-    return {'input_ids':torch.tensor(tokens),
-            'token_type_ids':torch.tensor(token_type_ids),
-            'attention_mask':torch.tensor(attention_masks)}
+    return {'input_ids':torch.LongTensor(tokens)}
 
 def split_data(dataset):
     split = StratifiedShuffleSplit(test_size=0.2, random_state=42)

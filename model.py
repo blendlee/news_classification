@@ -3,26 +3,36 @@ import torch
 import torch.nn as nn
 
 
-
-class LSTMClassifier(nn.Module):
-    def __init__(self,input_dim,hiddin_dim):
-        super(LSTMClassifier, self).__init__()
-
-        self.labels=20
-        self.input_dim = input_dim
-        self.hidden_dim = hiddin_dim
-        self.lstm = nn.LSTM(input_size=self.input_dim,hidden_size=self.hidden_dim,num_layers=2,dropout=0.2)
-        self.fclayer = nn.Linear(self.hidden_dim*2, self.labels)
-
+class Classifier(nn.Module):
+    def __init__(self,vocab_size):
+        super(Classifier, self).__init__()
+        self.embedding=nn.Embedding(num_embeddings = 35000,embedding_dim=256)
+        self.lstm1=nn.LSTM(input_size=256,hidden_size=128,bidirectional=True,num_layers=1)
+        self.lstm2=nn.LSTM(input_size=256,hidden_size=128,bidirectional=True,num_layers=1)
+        self.maxpool=nn.AdaptiveMaxPool2d(1)
+        self.seq=nn.Sequential(nn.Linear(1,1024),
+                  nn.Dropout(0.25),
+                  nn.Linear(1024,512),
+                  nn.Dropout(0.25),
+                  nn.Linear(512,256),
+                  nn.Dropout(0.25),
+                  nn.Linear(256,128),
+                  nn.Dropout(0.25),
+                  nn.Linear(128,64),
+                  nn.Dropout(0.25),
+                  nn.Linear(64,20),
+                  nn.Softmax(dim=2))
+        
+        
     def forward(self,input_ids,labels):
-
-        hidden, (last_hidden, last_cell) = self.lstm(input_ids)
-        cat_hidden= torch.cat((last_hidden[0], last_hidden[1]), dim= 1)
-        logits= self.fclayer(cat_hidden)
-        outputs = (logits,) + outputs[2:]
-
+        output=self.embedding(input_ids)
+        output=self.lstm1(output)[0]
+        output=self.lstm2(output)[0]
+        output=self.maxpool(output)
+        logits=self.seq(output)
         loss_fct = nn.CrossEntropyLoss()
-        loss = loss_fct(logits.view(-1, self.labels), labels.view(-1))
-        outputs = (loss,) + outputs
+        loss = loss_fct(logits.view(-1, 20), labels.view(-1))
+
+        outputs = (loss,logits)
 
         return outputs
