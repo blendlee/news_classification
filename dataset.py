@@ -11,22 +11,37 @@ import json
 
 
 class News_Dataset(Dataset):
-    def __init__(self,tokenized_dataset,label,train=True):
-        self.text= tokenized_dataset
-        self.train = train
-        self.labels=label
+    # def __init__(self,tokenized_dataset,label,train=True):
+    #     self.text= tokenized_dataset
+    #     self.train = train
+    #     self.labels=label
 
-    def __getitem__(self,idx):
-        item = {key: torch.LongTensor(val[idx]) for key, val in self.text.items()}
+    # def __getitem__(self,idx):
+    #     item = {key: torch.LongTensor(val[idx]) for key, val in self.text.items()}
+    #     if self.train:
+    #         item['labels'] = torch.LongTensor([self.labels[idx]])
+    #     else:
+    #         item['labels'] = torch.LongTensor(0)
+    #     return item
+
+    # def __len__(self):
+    #     return len(self.labels)
+
+    def __init__(self, tokenized_dataset, labels, train=True):
+        self.tokenized_dataset = tokenized_dataset
+        self.labels = labels
+        self.train = train
+    
+    def __getitem__(self, idx):
+        item = {key: torch.tensor(val[idx]) for key, val in self.tokenized_dataset.items()}
         if self.train:
-            item['labels'] = torch.LongTensor([self.labels[idx]])
+            item['labels'] = torch.tensor(self.labels[idx], dtype=torch.long)
         else:
-            item['labels'] = torch.LongTensor(0)
+            item['labels'] = torch.tensor(0, dtype=torch.long)
         return item
 
     def __len__(self):
         return len(self.labels)
-
 
 def preprocess(dataset):
     #f=open('/opt/ml/news_classification/corpus.txt','w')
@@ -75,26 +90,37 @@ def load_data(datadir):
     dataset = preprocess(dataset)
     return dataset
 
-def tokenized_dataset(dataset,tokenizer,max_len):
-    tokens=[]
-    token_type_ids=[]
-    attention_masks=[]
-    for i in range(len(dataset)):
-        encodings=tokenizer.encode('[CLS]',dataset['text'][i])
-        token=encodings.ids
-        if len(token) > max_len:
-            token = token[:max_len]
-            token_type_id=encodings.type_ids[:max_len]
-            attention_mask=encodings.attention_mask[:max_len]
-        else:
-            token = token + [0]*(max_len-len(token))
-            token_type_id=encodings.type_ids+ [0]*(max_len-len(token))
-            attention_mask=encodings.attention_mask+ [0]*(max_len-len(token))
-        tokens.append(token)
-        token_type_ids.append(token_type_id)
-        attention_masks.append(attention_mask)
-    
-    return {'input_ids':torch.LongTensor(tokens)}
+def tokenized_dataset(dataset,tokenizer,max_len,huggingface=False):
+    if huggingface:
+        tokenized_sentence = tokenizer(list(dataset['text']),
+                                        return_tensors="pt",
+                                        padding=True,
+                                        truncation=True,
+                                        max_length=max_len,
+                                        add_special_tokens=True)
+        return tokenized_sentence
+        
+        
+    else:
+        tokens=[]
+        token_type_ids=[]
+        attention_masks=[]
+        for i in range(len(dataset)):
+            encodings=tokenizer.encode('[CLS]',dataset['text'][i])
+            token=encodings.ids
+            if len(token) > max_len:
+                token = token[:max_len]
+                token_type_id=encodings.type_ids[:max_len]
+                attention_mask=encodings.attention_mask[:max_len]
+            else:
+                token = token + [0]*(max_len-len(token))
+                token_type_id=encodings.type_ids+ [0]*(max_len-len(token))
+                attention_mask=encodings.attention_mask+ [0]*(max_len-len(token))
+            tokens.append(token)
+            token_type_ids.append(token_type_id)
+            attention_masks.append(attention_mask)
+
+        return {'input_ids':torch.Tensor(tokens)}
 
 def split_data(dataset):
     split = StratifiedShuffleSplit(test_size=0.2, random_state=42)
