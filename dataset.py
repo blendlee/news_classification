@@ -47,9 +47,9 @@ def preprocess(dataset):
     #f=open('/opt/ml/news_classification/corpus.txt','w')
     for i in range(len(dataset)):
         text = dataset['text'][i]
-        review = re.sub(r'[@%\\*=()/~#&\+á?\xc3\xa1\-\|\.\:\;\!\-\,\_\~\$\'\"\n\]\[\>]', '',text) #@%*=()/+ 와 같은 문장부호 제거
-        review = re.sub(r'\d+','', review)#숫자 제거
-        review = review.lower() #소문자 변환
+        #review = re.sub(r'[@%\\*=()/~#&\+á?\xc3\xa1\-\|\.\:\;\!\-\,\_\~\$\'\"\n\]\[\>]', '',text) #@%*=()/+ 와 같은 문장부호 제거
+        #review = re.sub(r'\d+','', review)#숫자 제거
+        review = text.lower() #소문자 변환
         review = re.sub(r'\s+', ' ', review) #extra space 제거
         review = re.sub(r'<[^>]+>','',review) #Html tags 제거
         review = re.sub(r'\s+', ' ', review) #spaces 제거
@@ -91,14 +91,18 @@ def load_data(datadir):
     return dataset
 
 def tokenized_dataset(dataset,tokenizer,max_len,huggingface=False):
+    labels=[]
     if huggingface:
+        for label in dataset['target']:
+            labels.append(label)
         tokenized_sentence = tokenizer(list(dataset['text']),
                                         return_tensors="pt",
                                         padding=True,
                                         truncation=True,
                                         max_length=max_len,
                                         add_special_tokens=True)
-        return tokenized_sentence
+            
+        return tokenized_sentence,labels
         
         
     else:
@@ -119,8 +123,9 @@ def tokenized_dataset(dataset,tokenizer,max_len,huggingface=False):
             tokens.append(token)
             token_type_ids.append(token_type_id)
             attention_masks.append(attention_mask)
+            labels.append(dataset['target'][i])
 
-        return {'input_ids':torch.Tensor(tokens)}
+        return {'input_ids':torch.Tensor(tokens)},labels
 
 def split_data(dataset):
     split = StratifiedShuffleSplit(test_size=0.2, random_state=42)

@@ -33,7 +33,7 @@ def train():
     datadir='/opt/ml/news_classification/data/train.csv'
 
     vocab_size=5000
-    max_len=500
+    max_len=256
 
 
     ##########Tokenizer 정의##########
@@ -50,17 +50,6 @@ def train():
     
     dataset = load_data(datadir)
     train_data,val_data = split_data(dataset)
-    
-    #train_data = train_data.reset_index()
-    #val_data = val_data.reset_index()
-    
-    train_text = train_data['text']
-    train_label = train_data['target']
-    
-    val_text = val_data['text']
-    val_label = val_data['target']
- 
-    
 
 
     ##########모델 정의##########
@@ -80,12 +69,12 @@ def train():
 
     huggingface=True
 
-    tokenized_train = tokenized_dataset(train_data,tokenizer,max_len,huggingface=huggingface)
-    tokenized_val = tokenized_dataset(val_data,tokenizer,max_len,huggingface=huggingface)
+    tokenized_train,train_label = tokenized_dataset(train_data,tokenizer,max_len,huggingface=huggingface)
+    tokenized_val,val_label = tokenized_dataset(val_data,tokenizer,max_len,huggingface=huggingface)
     
     
-    train_dataset = News_Dataset(tokenized_train,train_label)
-    val_dataset = News_Dataset(tokenized_val,val_label)
+    train_dataset = News_Dataset(tokenized_train,train_label,train=True)
+    val_dataset = News_Dataset(tokenized_val,val_label,train=True)
 
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     print(device)
@@ -97,11 +86,11 @@ def train():
         save_total_limit=5,              # number of total save model.
         save_steps=500,                 # model saving step.
         num_train_epochs=500,              # total number of training epochs
-        learning_rate=5e-2,               # learning_rate
+        learning_rate=5e-4,               # learning_rate
         per_device_train_batch_size=64,  # batch size per device during training
         per_device_eval_batch_size=64,   # batch size for evaluation
         warmup_steps=500,                # number of warmup steps for learning rate scheduler
-        weight_decay=0.0001,               # strength of weight decay
+        weight_decay=0.00001,               # strength of weight decay
         logging_dir='./logs',            # directory for storing logs
         logging_steps=500,              # log saving step.
         evaluation_strategy='epoch',
